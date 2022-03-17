@@ -115,13 +115,16 @@ def getPaginatedReplies(lastTweetID):
   print("----- GET REPLIES -----")
 
   # Get replies
-  replies = tweepy.Cursor(api.search_tweets, q='to:{}'.format(username),
-                          since_id=lastTweetID,count=100).items(number_of_tweets*10)
+  responsePages = tweepy.Cursor(api.search_tweets, q='to:{}'.format(username),
+                          since_id=lastTweetID,count=100).pages(number_of_tweets*10)
 
   # for every reply, append their username
-  for reply in replies:
-    print("Reply from:  ", reply.user.screen_name, " appended.")
-    repliers.append(reply.user.screen_name)
+  for response in responsePages:
+
+    for reply in response:
+      
+      print("Reply from:  ", reply.user.screen_name, " appended.")
+      repliers.append(reply.user.screen_name)
   
   return repliers
   

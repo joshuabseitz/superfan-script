@@ -1,4 +1,5 @@
 import csv
+import time
 import tweepy
 from collections import Counter
 
@@ -12,9 +13,9 @@ username = inputs["username"]
 number_of_tweets = inputs["number_of_tweets"]
 
 # Pulling Twitter API information from input.json
-consumer_key=inputs["consumer_key"]
-consumer_secret=inputs["consumer_secret"]
-access_key=inputs["access_key"]
+consumer_key=inputs["api_key"]
+consumer_secret=inputs["api_key_secret"]
+access_key=inputs["access_token"]
 access_secret=inputs["access_secret"]
 bearer_token=inputs["bearer_token"]
 
@@ -29,14 +30,21 @@ def main():
   # Get a X amount of Tweets from the specified user
   tweet_IDs = getPaginatedTweets(username, number_of_tweets)
 
+  # get last Tweet for reference in replies request (i.e. get repliese since this last Tweet)
+  lastTweetId = tweet_IDs[len(tweet_IDs)-1]
+  print("Last Tweet ID: ", lastTweetId)
+
+  # get replies
+  repliers = getPaginatedReplies(lastTweetId)
+
   # Get all retweeters of each Tweet
   retweeters = getPaginatedRts(tweet_IDs)
 
   # Get all likers of each Tweet
   likers = getPaginatedLikes(tweet_IDs)
 
-  # Find the unique fans from the likers and RTers list
-  unique_fans = (list(dict.fromkeys(retweeters + likers)))
+  # Find the unique fans from the likers, RTers, and repliers list
+  unique_fans = (list(dict.fromkeys(retweeters + likers + repliers)))
 
   print("----- STORING FAN DATA -----")
   data = []
@@ -52,11 +60,14 @@ def main():
     # Get the followers for each fan
     followers = getFollowerCount(fan)
 
+    # Calculate replies
+    replies = Counter(repliers)[fan]
+
     # Calculate a score for each fan
-    score = ((rtCount*2)+(likeCount))
+    score = ((replies*3)+(rtCount*2)+(likeCount))
 
     # Add this fan and their data to the "Data" list
-    data.append([fan,rtCount,likeCount,followers,score])
+    data.append([fan,rtCount,likeCount,replies,score,followers])
     
     print("Data stored for: ", fan)
 
@@ -72,7 +83,7 @@ def toCsv(data):
   writer = csv.writer(f)
 
   # write the header
-  writer.writerow(["Username","Retweets","Favorites","Followers","Score"])
+  writer.writerow(["Username","Retweets","Favorites","Replies","Score","Followers"])
 
   # write a new row for each fan and their data
   for fan in data:
@@ -83,11 +94,36 @@ def toCsv(data):
 
 def getFollowerCount(fan):
 
-  # get user information of specified screenname (fan)
-  user = api.get_user(screen_name=fan)
+  followers = 0
+
+  # try to get follower count
+  try:
+    user = api.get_user(screen_name=fan)
+    followers = user.followers_count
+
+  # skip if it doesn't work, labels it 0
+  except:
+    pass
 
   # return that user's follower count
-  return(user.followers_count)
+  return(followers)
+
+def getPaginatedReplies(lastTweetID):
+
+  repliers = []
+
+  print("----- GET REPLIES -----")
+
+  # Get replies
+  replies = tweepy.Cursor(api.search_tweets, q='to:{}'.format(username),
+                          since_id=lastTweetID,count=100).items(number_of_tweets*10)
+
+  # for every reply, append their username
+  for reply in replies:
+    print("Reply from:  ", reply.user.screen_name, " appended.")
+    repliers.append(reply.user.screen_name)
+  
+  return repliers
   
 def getPaginatedTweets(username, number_of_tweets):
   
@@ -123,10 +159,9 @@ def getPaginatedRts(tweetIdList):
       # if the response from Twitter's API is not empty
       if(response.meta['result_count']!=0):
 
-        # append each retweeter in the resposne to an array
+        # append each retweeter to an array
         for retweeter in response.data:
           retweetersList.append(retweeter.username)
-        print("Retweets appended...")
 
   # reutrn the list of retweeters
   return(retweetersList)
@@ -151,8 +186,6 @@ def getPaginatedLikes(tweetIdList):
         # append them
         for like in response.data:
           userLikeList.append(like.username)
-          
-        print("Likes: appended")
 
   # return the list of likers
   return(userLikeList)

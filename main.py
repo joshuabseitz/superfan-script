@@ -48,6 +48,15 @@ def main():
 
   print("----- STORING FAN DATA -----")
   data = []
+
+  # Open or create a CSV file, with "w" or write permission
+  f = open("data1.csv", "w")
+
+  # initialize the writer
+  writer = csv.writer(f)
+
+  # write the header
+  writer.writerow(["Username","Retweets","Favorites","Replies","Score","Followers"])
   
   for fan in unique_fans:
 
@@ -71,6 +80,9 @@ def main():
     
     print("Data stored for: ", fan)
 
+    writer.writerow([fan,rtCount,likeCount,replies,score,followers])
+
+  f.close()
   # Conver the "Data" list to a spreadsheet
   toCsv(data)
   
